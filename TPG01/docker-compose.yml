@@ -1,0 +1,236 @@
+version: "2.1"
+services:
+  heimdall:
+    image: lscr.io/linuxserver/heimdall
+    container_name: heimdall
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/London
+    volumes:
+      - /home/aptalca/appdata/heimdall:/config
+    restart: unless-stopped
+  swag:
+    image: lscr.io/linuxserver/swag
+    container_name: swag
+    cap_add:
+      - NET_ADMIN
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/London
+      - URL=bridgemo.duckdns.org
+      - SUBDOMAINS=wildcard
+      - VALIDATION=duckdns
+      - DUCKDNSTOKEN=2ce239ae-04b6-4168-802f-0a6df81a9a12
+    volumes:
+      - /home/aptalca/appdata/swag:/config
+    ports:
+      - 443:443
+      - 80:80
+    restart: unless-stopped
+
+  pma-mysqldb:
+    image: mysql:5.7
+    container_name: pma-mysqldb
+    environment:
+      MYSQL_ROOT_PASSWORD: mysql
+      MYSQL_DATABASE: mysqldb
+      MYSQL_USER: mysqluser
+      MYSQL_PASSWORD: mysql
+  pma-mariadb:
+    image: mariadb:10.3
+    container_name: pma-mariadb
+    environment:
+      MYSQL_ROOT_PASSWORD: mariadb
+      MYSQL_DATABASE: mariadb
+      MYSQL_USER: mariadb
+      MYSQL_PASSWORD: mariadb
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: phpmyadmin
+    links:
+      - pma-mysqldb
+      - pma-mariadb
+    environment:
+      PMA_HOST: mysqldb
+      PMA_PORT: 3306
+      PMA_ARBITRARY: 1
+    restart: always
+    volumes:
+      - /home/aptalca/appdata/phpmyadmin:/config
+
+  nextcloud-db:
+    image: mariadb:10.6
+    restart: always
+    command: --transaction-isolation=READ-COMMITTED --log-bin=binlog --binlog-format=ROW
+    volumes:
+      - /home/aptalca/appdata/nextcloud-db:/config
+    environment:
+      - MYSQL_ROOT_PASSWORD=nextcloud
+      - MYSQL_PASSWORD=nextcloud
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+
+  nextcloud-app:
+    image: nextcloud
+    restart: always
+    links:
+      - nextcloud-db
+    volumes:
+      - /home/aptalca/appdata/nextcloud:/config
+    environment:
+      - MYSQL_PASSWORD=nextcloud
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+      - MYSQL_HOST=nextcloud-db
+
+  ldap_server:
+    image: wshihadeh/openldap:withdata
+    environment:
+      LDAP_ADMIN_PASSWORD: moream
+      LDAP_BASE_DN: dc=moream,dc=com
+    ports:
+      - 389:389
+    volumes:
+      - /home/aptalca/appdata/ldapserver:/config
+  ldap_server_adm:
+    image: osixia/phpldapadmin:0.7.2
+
+  db:
+    # We use a mariadb image which supports both amd64 & arm64 architecture
+    image: mariadb:latest
+    # If you really want to use MySQL, uncomment the following line
+    #image: mysql:8.0.27
+    command: '--default-authentication-plugin=mysql_native_password'
+    volumes:
+      - /home/aptalca/appdata/WORDPRESS-DB:/config
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD=wordpress
+      - MYSQL_DATABASE=wordpress
+      - MYSQL_USER=wordpress
+      - MYSQL_PASSWORD=wordpress
+    expose:
+      - 3306
+      - 33060
+  wordpress:
+    image: wordpress:latest
+    volumes:
+      - /home/aptalca/appdata/WORDPRESS:/config
+    restart: always
+    environment:
+      - WORDPRESS_DB_HOST=db
+      - WORDPRESS_DB_USER=wordpress
+      - WORDPRESS_DB_PASSWORD=wordpress
+      - WORDPRESS_DB_NAME=wordpress
+  nextcloud-db2:
+    image: mariadb:10.6
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD=nexcloud
+      - MYSQL_PASSWORD=nexcloud
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+
+  nextcloud-app2:
+    image: nextcloud
+    restart: always
+    links:
+      - nextcloud-db
+    environment:
+      - MYSQL_PASSWORD=nexcloud
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+      - MYSQL_HOST=db
+
+  wordpress2:
+    image: wordpress
+    links:
+      - mariadb:mysql
+    environment:
+      - WORDPRESS_DB_PASSWORD=password
+      - WORDPRESS_DB_USER=root
+    volumes:
+      - ./html:/var/www/html
+  mariadb:
+    image: mariadb
+    environment:
+      - MYSQL_ROOT_PASSWORD=password
+      - MYSQL_DATABASE=wordpress
+    volumes:
+      - ./database:/var/lib/mysql
+
+  plik:
+    container_name: plik
+    image: rootgg/plik:latest
+    restart: always
+  gitea:
+    image: gitea/gitea:1.19.0
+    container_name: gitea
+    environment:
+      - USER_UID:1000
+      - USER_GID:1000
+    restart: always
+    volumes:
+      - ./gitea:/data
+    ports:
+      - "2222:22"
+
+#  spacedeck:
+#    build: .
+#    container_name: spacedeck
+#    volumes:
+#      - ./storage:/app/storage
+#      - ./database:/app/database
+
+  db-ecom:
+    container_name: db
+    image: mysql:latest
+    volumes:
+      - /var/lib/mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: masterpassword
+      MYSQL_DATABASE: database
+      MYSQL_USER: root
+
+  client-ecom:
+    container_name: client
+    image: borodindmitriy/e-commerce-back
+    command: "yarn start"
+    depends_on:
+      - server-ecom
+    volumes:
+      - ./client:/project
+  server-ecom:
+    container_name: server
+    image: borodindmitriy/e-commerce-back
+    depends_on:
+      - db-ecom
+    volumes:
+      - ./server:/project
+    links:
+      - db-ecom
+    ports:
+      - 1337:1337
+    environment:
+      PORT: 1337
+      DB_DATABASE: database
+      DB_USER: root
+      DB_PASSWORD: masterpassword
+      DB_HOST: db
+      DB_PORT: 3306
+
+
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./portainer-data:/data
+      - /home/aptalca/appdata/portainer:/config

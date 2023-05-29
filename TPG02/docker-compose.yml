@@ -1,0 +1,154 @@
+version: "2.1"
+services:
+  heimdall:
+    image: lscr.io/linuxserver/heimdall
+    container_name: heimdall
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/London
+    volumes:
+      - /home/aptalca/appdata/heimdall:/config
+    restart: unless-stopped
+  swag:
+    image: lscr.io/linuxserver/swag
+    container_name: swag
+    cap_add:
+      - NET_ADMIN
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/London
+      - URL=bridgemo.duckdns.org
+      - SUBDOMAINS=wildcard
+      - VALIDATION=duckdns
+      - DUCKDNSTOKEN=2ce239ae-04b6-4168-802f-0a6df81a9a12
+    volumes:
+      - /home/aptalca/appdata/swag:/config
+    ports:
+      - 443:443
+      - 80:80
+    restart: unless-stopped
+
+  heimdall-central:
+    image: linuxserver/heimdall
+    container_name: heimdall-central
+    restart: always
+    volumes:
+      - ./heimdall_config:/config
+    ports:
+
+#Outil ITSM
+  itop-client:
+    image: vbkunin/itop
+    container_name: itop-client
+    restart: always
+    environment:
+      - DB_HOST=itop-db-client
+      - DB_NAME=itop
+      - DB_USER=itop
+      - DB_PASSWORD=itop
+
+  itop-db-client:
+    image: mariadb
+    container_name: itop-db-client
+    restart: always
+    environment:
+      - MYSQL_DATABASE=itop
+      - MYSQL_USER=itop
+      - MYSQL_PASSWORD=itop
+      - MYSQL_ROOT_PASSWORD=root
+
+## Outil de gestion des candidatures
+  odoo-client:
+    image: odoo
+    container_name: odoo-client
+    restart: always
+    environment:
+      - POSTGRES_DB=odoo-db-client
+      - POSTGRES_USER=odoo
+      - POSTGRES_PASSWORD=odoo
+    depends_on:
+      - odoo-db-client
+  odoo-db-client:
+    image: postgres
+    container_name: odoo-db-client
+    restart: always
+    environment:
+      - POSTGRES_DB=odoo
+      - POSTGRES_USER=odoo
+      - POSTGRES_PASSWORD=odoo
+    volumes:
+      - ./odoo-data:/data
+
+## Outil documentation des procédures 
+  bootstack-client:
+    image: bitnami/mediawiki:latest
+    container_name: bootstack-client
+    restart: always
+    environment:
+      - MEDIAWIKI_DATABASE_HOST=bootstack-db-client
+      - MEDIAWIKI_DATABASE_NAME=mediawiki
+      - MEDIAWIKI_DATABASE_USER=mediawiki
+      - MEDIAWIKI_DATABASE_PASSWORD=mediawiki
+    depends_on:
+      - bootstack-db-client
+
+  bootstack-db-client:
+    image: mariadb
+    container_name: bootstack-db-client
+    restart: always
+    environment:
+      - MYSQL_DATABASE=mediawiki
+      - MYSQL_USER=mediawiki
+      - MYSQL_PASSWORD=mediawiki
+      - MYSQL_ROOT_PASSWORD=root
+    volumes:
+      - ./bootstack-data:/data
+
+## Outil de supervision
+  db-zabbix:
+    image: postgres
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: zabbix
+      POSTGRES_DB: zabbix
+      TZ: Europe/Paris
+    volumes:
+      - db-data:/var/lib/postgresql/data
+
+  zabbix:
+    image: zabbix/zabbix-server-pgsql:latest
+    depends_on:
+      - db-zabbix
+    ports:
+      - "10051:10051"
+    environment:
+      DB_SERVER_HOST: db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: zabbix
+      POSTGRES_DB: zabbix
+      ZBX_DATABASE_SCHEMA: zabbix
+    volumes:
+      - zabbix-data:/var/lib/zabbix
+    restart: always
+
+  zabbix-web:
+    image: zabbix/zabbix-web-nginx-pgsql:latest
+    depends_on:
+      - db-zabbix
+      - zabbix
+    environment:
+      DB_SERVER_HOST: db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: zabbix
+      POSTGRES_DB: zabbix
+      ZBX_SERVER_HOST: zabbix
+    restart: always
+
+volumes:
+  itop-db-data:
+  odoo-db-data:
+  wordpress-db-data:
+  bootstack-db-data:
+  portainer_data:
