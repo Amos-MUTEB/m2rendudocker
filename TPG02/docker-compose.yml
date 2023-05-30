@@ -19,7 +19,7 @@ services:
       - PUID=1000
       - PGID=1000
       - TZ=Europe/London
-      - URL=bridgemo.duckdns.org
+      - URL=moream.duckdns.org
       - SUBDOMAINS=wildcard
       - VALIDATION=duckdns
       - DUCKDNSTOKEN=2ce239ae-04b6-4168-802f-0a6df81a9a12
