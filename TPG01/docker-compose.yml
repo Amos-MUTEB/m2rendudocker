@@ -60,31 +60,6 @@ services:
     volumes:
       - /home/aptalca/appdata/phpmyadmin:/config
 
-  nextcloud-db:
-    image: mariadb:10.6
-    restart: always
-    command: --transaction-isolation=READ-COMMITTED --log-bin=binlog --binlog-format=ROW
-    volumes:
-      - /home/aptalca/appdata/nextcloud-db:/config
-    environment:
-      - MYSQL_ROOT_PASSWORD=nextcloud
-      - MYSQL_PASSWORD=nextcloud
-      - MYSQL_DATABASE=nextcloud
-      - MYSQL_USER=nextcloud
-
-  nextcloud-app:
-    image: nextcloud
-    restart: always
-    links:
-      - nextcloud-db
-    volumes:
-      - /home/aptalca/appdata/nextcloud:/config
-    environment:
-      - MYSQL_PASSWORD=nextcloud
-      - MYSQL_DATABASE=nextcloud
-      - MYSQL_USER=nextcloud
-      - MYSQL_HOST=nextcloud-db
-
   ldap_server:
     image: wshihadeh/openldap:withdata
     environment:
@@ -114,16 +89,6 @@ services:
     expose:
       - 3306
       - 33060
-  wordpress:
-    image: wordpress:latest
-    volumes:
-      - /home/aptalca/appdata/WORDPRESS:/config
-    restart: always
-    environment:
-      - WORDPRESS_DB_HOST=db
-      - WORDPRESS_DB_USER=wordpress
-      - WORDPRESS_DB_PASSWORD=wordpress
-      - WORDPRESS_DB_NAME=wordpress
   nextcloud-db2:
     image: mariadb:10.6
     restart: always
@@ -135,14 +100,19 @@ services:
 
   nextcloud-app2:
     image: nextcloud
+    container_name: nexcloud
+    ports:
+      - 9086:80
     restart: always
     links:
-      - nextcloud-db
+      - nextcloud-db2
     environment:
       - MYSQL_PASSWORD=nexcloud
       - MYSQL_DATABASE=nextcloud
       - MYSQL_USER=nextcloud
       - MYSQL_HOST=db
+    volumes:
+      - /home/aptalca/appdata/nexcloud:/config
 
   wordpress2:
     image: wordpress
@@ -162,9 +132,27 @@ services:
       - ./database:/var/lib/mysql
 
   plik:
+    image: rootgg/plik
     container_name: plik
-    image: rootgg/plik:latest
-    restart: always
+    volumes:
+      - ./plik-config:/etc/plik
+      - /home/aptalca/appdata/phpmyadmin:/config
+    environment:
+      - PLIK_HOME=/etc/plik
+
+  spacedeck:
+    image: spacedeck/spacedeck-open
+    container_name: spacedeck
+    ports:
+      - 9082:80
+    volumes:
+      - ./spacedeck-config:/opt/spacedeck/config
+      - /home/aptalca/appdata/spacedeck:/config
+
+    environment:
+      - NODE_ENV=production
+      - CONFIG_PATH=/opt/spacedeck/config/config.js
+
   gitea:
     image: gitea/gitea:1.19.0
     container_name: gitea
@@ -177,13 +165,6 @@ services:
     ports:
       - "2222:22"
 
-#  spacedeck:
-#    build: .
-#    container_name: spacedeck
-#    volumes:
-#      - ./storage:/app/storage
-#      - ./database:/app/database
-
   db-ecom:
     container_name: db
     image: mysql:latest
@@ -194,7 +175,6 @@ services:
       MYSQL_ROOT_PASSWORD: masterpassword
       MYSQL_DATABASE: database
       MYSQL_USER: root
-
   client-ecom:
     container_name: client
     image: borodindmitriy/e-commerce-back
@@ -203,6 +183,7 @@ services:
       - server-ecom
     volumes:
       - ./client:/project
+
   server-ecom:
     container_name: server
     image: borodindmitriy/e-commerce-back
@@ -221,7 +202,6 @@ services:
       DB_PASSWORD: masterpassword
       DB_HOST: db
       DB_PORT: 3306
-
 
   portainer:
     image: portainer/portainer-ce:latest
